@@ -4,7 +4,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # Берем токен из скрытых настроек сервера Railway
-TOKEN = os.environ.get('8498923371:AAFZRQhUNUCQJxX7GB_AnAlGrRPgdVoQoQw')
+TOKEN = os.environ.get('BOT_TOKEN')
 
 # Ниже идет ваш запуск бота (обычно в самом конце файла)
 # Убедитесь, что там используется переменная TOKEN, например:
