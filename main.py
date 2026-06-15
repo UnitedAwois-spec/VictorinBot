@@ -1,3 +1,6 @@
+import http.server
+import threading
+
 import os
 import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -319,7 +322,11 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-def main():
+def main(# Трюк для обмана бесплатного тарифа Railway
+port = int(os.environ.get("PORT", 8080))
+server = http.server.HTTPServer(('0.0.0.0', port), http.server.BaseHTTPRequestHandler)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
