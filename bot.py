@@ -1,21 +1,28 @@
-import http.server
-import threading
-
-import os
-import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import random
+import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Берем токен из скрытых настроек сервера Railway
-TOKEN = os.environ.get('BOT_TOKEN')
+# Токен берём из переменной окружения Railway (безопаснее чем писать в коде)
+TOKEN = os.environ.get("BOT_TOKEN")
 
-# Ниже идет ваш запуск бота (обычно в самом конце файла)
-# Убедитесь, что там используется переменная TOKEN, например:
-# application = Application.builder().token(TOKEN).build()
+# ===== ВЕБ-СЕРВЕР ДЛЯ RAILWAY =====
+# Это просто "пустышка" которая говорит Railway что бот живой
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
 
-# Все 99 вопросов по категориям
+def run_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    server.serve_forever()
+# ===================================
+
 ALL_QUESTIONS = [
-    # IT и технологии (33 вопроса)
     {"q": "Что означает CPU?", "o": ["Центральный процессор", "Видеокарта", "Память", "Монитор"], "a": 0, "cat": "💻 IT"},
     {"q": "Сколько бит в байте?", "o": ["4", "8", "16", "32"], "a": 1, "cat": "💻 IT"},
     {"q": "Что такое RAM?", "o": ["Процессор", "Видеокарта", "Оперативная память", "Диск"], "a": 2, "cat": "💻 IT"},
@@ -49,8 +56,6 @@ ALL_QUESTIONS = [
     {"q": "Что такое сервер?", "o": ["Мощный компьютер который обслуживает запросы", "Браузер", "Вид кабеля", "Антивирус"], "a": 0, "cat": "💻 IT"},
     {"q": "Что такое хостинг?", "o": ["Браузер", "Место где хранится сайт/бот", "Антивирус", "Поисковик"], "a": 1, "cat": "💻 IT"},
     {"q": "Какой из этих языков — язык разметки, а не программирования?", "o": ["Python", "Java", "HTML", "C++"], "a": 2, "cat": "💻 IT"},
-
-    # Общие знания (33 вопроса)
     {"q": "Сколько планет в Солнечной системе?", "o": ["7", "8", "9", "10"], "a": 1, "cat": "🌍 Общее"},
     {"q": "Столица Японии?", "o": ["Osaka", "Kyoto", "Tokyo", "Hiroshima"], "a": 2, "cat": "🌍 Общее"},
     {"q": "Сколько continents на Земле?", "o": ["5", "6", "7", "8"], "a": 2, "cat": "🌍 Общее"},
@@ -83,8 +88,6 @@ ALL_QUESTIONS = [
     {"q": "Сколько игроков в футбольной команде на поле?", "o": ["9", "10", "11", "12"], "a": 2, "cat": "🌍 Общее"},
     {"q": "Какой орган перекачивает кровь?", "o": ["Мозг", "Лёгкие", "Сердце", "Печень"], "a": 2, "cat": "🌍 Общее"},
     {"q": "Самый холодный континент?", "o": ["Арктика", "Антарктида", "Северная Америка", "Азия"], "a": 1, "cat": "🌍 Общее"},
-
-    # Математика (33 вопроса)
     {"q": "Сколько будет 15 × 15?", "o": ["175", "200", "225", "250"], "a": 2, "cat": "🔢 Математика"},
     {"q": "Квадратный корень из 144?", "o": ["10", "11", "12", "13"], "a": 2, "cat": "🔢 Математика"},
     {"q": "Сколько будет 2 в степени 10?", "o": ["512", "1024", "2048", "256"], "a": 1, "cat": "🔢 Математика"},
@@ -106,7 +109,7 @@ ALL_QUESTIONS = [
     {"q": "Сколько будет 999 + 1?", "o": ["999", "1000", "1001", "1010"], "a": 1, "cat": "🔢 Математика"},
     {"q": "Площадь прямоугольника 5×8?", "o": ["30", "35", "40", "45"], "a": 2, "cat": "🔢 Математика"},
     {"q": "Что такое дробь 1/2 в процентах?", "o": ["25%", "40%", "50%", "75%"], "a": 2, "cat": "🔢 Математика"},
-    {"q": "Сколько будет 6!  (факториал)?", "o": ["120", "360", "720", "5040"], "a": 2, "cat": "🔢 Математика"},
+    {"q": "Сколько будет 6! (факториал)?", "o": ["120", "360", "720", "5040"], "a": 2, "cat": "🔢 Математика"},
     {"q": "Какое число чётное?", "o": ["7", "13", "17", "18"], "a": 3, "cat": "🔢 Математика"},
     {"q": "Сколько будет √256?", "o": ["14", "16", "18", "20"], "a": 1, "cat": "🔢 Математика"},
     {"q": "Сколько будет 15% от 300?", "o": ["35", "40", "45", "50"], "a": 2, "cat": "🔢 Математика"},
@@ -120,10 +123,7 @@ ALL_QUESTIONS = [
     {"q": "Как называется результат деления?", "o": ["Сумма", "Разность", "Произведение", "Частное"], "a": 3, "cat": "🔢 Математика"},
 ]
 
-# Данные пользователей хранятся здесь пока бот работает
 user_data = {}
-
-# Топ игроков (максимум 10)
 leaderboard = {}
 
 
@@ -143,6 +143,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"👋 Привет, {name}!\n\n"
         f"🧠 <b>IT-Викторина</b> — проверь свои знания!\n\n"
+        f"📚 Всего вопросов в базе: {len(ALL_QUESTIONS)}\n"
         f"🎯 Выбери режим игры:",
         reply_markup=markup,
         parse_mode="HTML"
@@ -155,18 +156,15 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    # Выбор режима игры
     if data.startswith("mode_") or data == "show_leaderboard":
-
         if data == "show_leaderboard":
             await show_leaderboard_inline(query)
             return
 
-        # Фильтруем вопросы по категории
         if data == "mode_random":
             pool = ALL_QUESTIONS.copy()
             random.shuffle(pool)
-            selected = pool[:10]  # 10 случайных вопросов
+            selected = pool[:10]
         elif data == "mode_it":
             selected = [q for q in ALL_QUESTIONS if "IT" in q["cat"]]
         elif data == "mode_general":
@@ -174,7 +172,6 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif data == "mode_math":
             selected = [q for q in ALL_QUESTIONS if "Математика" in q["cat"]]
 
-        # Сохраняем состояние пользователя
         user_data[user_id] = {
             "score": 0,
             "question": 0,
@@ -188,7 +185,6 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_question_inline(context, user_id)
         return
 
-    # Обработка ответа на вопрос
     if ":" in data:
         parts = data.split(":")
         q_index = int(parts[0])
@@ -198,12 +194,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("Напиши /start чтобы начать!")
             return
 
-        # Защита от повторного нажатия
         if q_index != user_data[user_id]["question"]:
             return
 
         questions = user_data[user_id]["questions"]
-        correct = questions[q_index]["answer"]
+        correct = questions[q_index]["a"]
         correct_text = questions[q_index]["o"][correct]
 
         if answer_index == correct:
@@ -225,16 +220,13 @@ async def send_question_inline(context, user_id):
     questions = data["questions"]
 
     if q_index >= len(questions):
-        # Викторина закончена
         score = data["score"]
         total = len(questions)
         name = data["name"]
 
-        # Обновляем рейтинг
         if user_id not in leaderboard or leaderboard[user_id]["score"] < score:
             leaderboard[user_id] = {"name": name, "score": score, "total": total}
 
-        # Выбираем комментарий
         percent = score / total
         if percent == 1.0:
             emoji, comment = "🏆", "Идеальный результат! Ты абсолютный чемпион!"
@@ -258,17 +250,14 @@ async def send_question_inline(context, user_id):
         return
 
     q = questions[q_index]
-
     keyboard = []
     for i, option in enumerate(q["o"]):
         keyboard.append([InlineKeyboardButton(option, callback_data=f"{q_index}:{i}")])
-
     markup = InlineKeyboardMarkup(keyboard)
 
     await context.bot.send_message(
         chat_id=user_id,
-        text=f"<b>{q['cat']}</b> | Вопрос {q_index + 1}/{len(questions)}\n\n"
-             f"❓ <b>{q['q']}</b>",
+        text=f"<b>{q['cat']}</b> | Вопрос {q_index + 1}/{len(questions)}\n\n❓ <b>{q['q']}</b>",
         reply_markup=markup,
         parse_mode="HTML"
     )
@@ -276,17 +265,12 @@ async def send_question_inline(context, user_id):
 
 async def show_leaderboard_inline(query):
     if not leaderboard:
-        await query.edit_message_text(
-            "🏆 Рейтинг пока пуст!\n\nСыграй первым и займи первое место!"
-        )
+        await query.edit_message_text("🏆 Рейтинг пока пуст!\n\nСыграй первым и займи первое место!")
         return
 
-    # Сортируем по очкам
     sorted_board = sorted(leaderboard.values(), key=lambda x: x["score"], reverse=True)
-
     text = "🏆 <b>Топ игроков:</b>\n\n"
     medals = ["🥇", "🥈", "🥉"]
-
     for i, player in enumerate(sorted_board[:10]):
         medal = medals[i] if i < 3 else f"{i+1}."
         text += f"{medal} {player['name']} — {player['score']}/{player['total']}\n"
@@ -302,7 +286,6 @@ async def leaderboard_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sorted_board = sorted(leaderboard.values(), key=lambda x: x["score"], reverse=True)
     text = "🏆 <b>Топ игроков:</b>\n\n"
     medals = ["🥇", "🥈", "🥉"]
-
     for i, player in enumerate(sorted_board[:10]):
         medal = medals[i] if i < 3 else f"{i+1}."
         text += f"{medal} {player['name']} — {player['score']}/{player['total']}\n"
@@ -322,13 +305,11 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-def main(# Трюк для обмана бесплатного тарифа Railway
-port = int(os.environ.get("PORT", 8080))
-server = http.server.HTTPServer(('0.0.0.0', port), http.server.BaseHTTPRequestHandler)
-threading.Thread(target=server.serve_forever, daemon=True).start()
+def main():
+    # Запускаем веб-сервер в фоновом потоке (для Railway)
+    threading.Thread(target=run_web_server, daemon=True).start()
 
     app = Application.builder().token(TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("leaderboard", leaderboard_cmd))
     app.add_handler(CommandHandler("help", help_cmd))
